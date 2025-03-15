@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LuLu - Chat And Call!</title>
+  <style>
+    /* Your existing styles */
+    .auth-container {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
+    .auth-container input {
+      padding: 8px;
+      margin: 10px;
+      width: 200px;
+    }
+    .auth-container button {
+      padding: 8px 16px;
+      margin: 10px;
+      background: #5865F2;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Authentication Container -->
+  <div class="auth-container" id="authContainer">
+    <h2>Welcome to LuLu Chat!</h2>
+    <input type="text" id="usernameInput" placeholder="Enter Username" required>
+    <input type="password" id="passwordInput" placeholder="Enter Password" required>
+    <button id="signupButton">Sign Up</button>
+    <button id="loginButton">Login</button>
+    <p id="authMessage" style="color:red;"></p>
+  </div>
+
+  <!-- Chat App (Hidden until user is logged in) -->
+  <div class="chat-container" id="chatContainer" style="display:none;">
+    <!-- Your existing chat application HTML structure -->
+    <div class="messages-container" id="messages"></div>
+    <div class="message-input-container">
+      <input type="text" id="messageInput" placeholder="Type a message...">
+      <button id="sendButton">Send</button>
+    </div>
+  </div>
+
+  <script>
+    const ws = new WebSocket('ws://localhost:3000');
+    const signupButton = document.getElementById('signupButton');
+    const loginButton = document.getElementById('loginButton');
+    const usernameInput = document.getElementById('usernameInput');
+    const passwordInput = document.getElementById('passwordInput');
+    const authMessage = document.getElementById('authMessage');
+    const chatContainer = document.getElementById('chatContainer');
+    const authContainer = document.getElementById('authContainer');
+    
+    let username = '';
+    let password = '';
+
+    // When the user clicks on Sign Up
+    signupButton.addEventListener('click', () => {
+      username = usernameInput.value;
+      password = passwordInput.value;
+      
+      if (username && password) {
+        const signupData = { type: 'signup', username, password };
+        ws.send(JSON.stringify(signupData));
+      } else {
+        authMessage.textContent = 'Please provide both username and password.';
+      }
+    });
+
+    // When the user clicks on Login
+    loginButton.addEventListener('click', () => {
+      username = usernameInput.value;
+      password = passwordInput.value;
+      
+      if (username && password) {
+        const loginData = { type: 'login', username, password };
+        ws.send(JSON.stringify(loginData));
+      } else {
+        authMessage.textContent = 'Please provide both username and password.';
+      }
+    });
+
+    ws.addEventListener('message', (event) => {
+      const data = JSON.parse(event.data);
+
+      if (data.type === 'login-success') {
+        // Hide authentication form and show chat
+        authContainer.style.display = 'none';
+        chatContainer.style.display = 'block';
+      } else if (data.type === 'signup-success') {
+        authMessage.textContent = 'Sign up successful! You can now log in.';
+      } else if (data.type === 'auth-error') {
+        authMessage.textContent = data.message;
+      }
+    });
+  </script>
+
+</body>
+</html>
