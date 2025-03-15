@@ -13,20 +13,14 @@ function sendMessage() {
   if (messageText) {
     const message = { sender: username, text: messageText };
     ws.send(JSON.stringify(message));
-    messageInput.value = '';
+    messageInput.value = ''; // Clear the input field
   }
 }
 
 // Display messages on the screen
 function displayMessage(message) {
-  if (!message || !message.sender) return;
-
-  // Prevent duplicate messages
-  if (document.querySelector(`[data-message-id="${message.id}"]`)) return;
-
   const messageContainer = document.createElement('div');
   messageContainer.classList.add('message-container');
-  messageContainer.setAttribute('data-message-id', message.id); // Unique ID for refresh tracking
 
   const senderElement = document.createElement('span');
   senderElement.textContent = `${message.sender}: `;
@@ -40,9 +34,6 @@ function displayMessage(message) {
   messageContainer.appendChild(messageElement);
   messagesDiv.appendChild(messageContainer);
 
-  // Scroll to the latest message
-  messagesDiv.scrollTop = messagesDiv.scrollHeight;
-
   // If this is a normal client message and the bot is active, repeat it after 3 seconds
   if (isBot && message.sender !== "ServerBot") {
     setTimeout(() => {
@@ -52,25 +43,18 @@ function displayMessage(message) {
   }
 }
 
-// Function to fetch and refresh messages every 100ms
-function refreshMessages() {
-  ws.send(JSON.stringify({ type: 'fetch-messages' })); // Request latest messages from server
-}
-
 // Handle incoming WebSocket messages
 ws.onmessage = (event) => {
   const data = JSON.parse(event.data);
 
   if (data.type === 'history') {
-    messagesDiv.innerHTML = ''; // Clear before appending to prevent duplication
+    // Load previous messages
     data.messages.forEach(displayMessage);
   } else if (data.type === 'new-message') {
+    // Display new message
     displayMessage(data.message);
   }
 };
-
-// Auto-refresh messages every 100ms
-setInterval(refreshMessages, 100);
 
 // Event listeners
 sendButton.addEventListener('click', sendMessage);
@@ -79,3 +63,22 @@ messageInput.addEventListener('keydown', (event) => {
     sendMessage();
   }
 });
+
+const createChannel = (channelName, passcode) => {
+  const createData = {
+    action: 'create-channel',
+    channel: channelName,
+    passcode: coastissigmadev
+  };
+  ws.send(JSON.stringify(createData));
+};
+
+ws.onmessage = (event) => {
+  const data = JSON.parse(event.data);
+  if (data.type === 'success') {
+    alert(data.message);
+  } else if (data.type === 'error') {
+    alert(data.message);
+  }
+};
+
