@@ -82,3 +82,106 @@ ws.onmessage = (event) => {
   }
 };
 
+const settingsMenu = document.getElementById("settingsMenu");
+const usernameInput = document.getElementById("usernameInput");
+const pfpInput = document.getElementById("pfpInput");
+
+// Load saved user data (if available)
+let currentUser = JSON.parse(localStorage.getItem("currentUser")) || { 
+  name: "Your Name", 
+  pfp: "https://via.placeholder.com/40" 
+};
+
+// Set initial values
+document.getElementById("profileName").innerText = currentUser.name;
+document.getElementById("profilePic").src = currentUser.pfp;
+usernameInput.value = currentUser.name;
+pfpInput.value = currentUser.pfp;
+
+// Toggle settings menu
+function toggleSettings() {
+  settingsMenu.style.display = (settingsMenu.style.display === "block") ? "none" : "block";
+}
+
+// Save user settings
+function saveSettings() {
+  currentUser.name = usernameInput.value;
+  currentUser.pfp = pfpInput.value;
+
+  localStorage.setItem("currentUser", JSON.stringify(currentUser));
+
+  // Update UI
+  document.getElementById("profileName").innerText = currentUser.name;
+  document.getElementById("profilePic").src = currentUser.pfp;
+  
+  toggleSettings();
+}
+
+// Load messages and display profile pictures
+function loadMessages(channelId) {
+  const messages = servers[activeServer].channels[channelId].messages || [];
+  messagesDiv.innerHTML = ""; 
+
+  messages.forEach((message) => {
+    const messageDiv = document.createElement("div");
+    messageDiv.classList.add(message.user === currentUser.name ? "message-self" : "message-others");
+
+    const avatar = document.createElement("img");
+    avatar.classList.add("message-avatar");
+
+    // Check if the message sender is the current user
+    if (message.user === currentUser.name) {
+      avatar.src = currentUser.pfp;
+    } else {
+      avatar.src = "https://via.placeholder.com/40"; // Default PFP for others (Can be replaced)
+    }
+
+    const messageContent = document.createElement("div");
+    messageContent.classList.add("message-content");
+
+    const messageHeader = document.createElement("div");
+    messageHeader.classList.add("message-header");
+    messageHeader.innerHTML = `<strong>${message.user}</strong> <span class="message-time">${message.time}</span>`;
+
+    const messageText = document.createElement("div");
+    messageText.classList.add("message-text");
+    messageText.innerHTML = message.text.replace(/@\w+/g, (mention) => `<span class="mention">${mention}</span>`);
+
+    messageContent.appendChild(messageHeader);
+    messageContent.appendChild(messageText);
+
+    if (message.media) {
+      const mediaElement = document.createElement(message.media.type === "video" ? "video" : "img");
+      mediaElement.src = message.media.url;
+      if (message.media.type === "video") {
+        mediaElement.controls = true;
+        mediaElement.classList.add("message-media");
+      } else {
+        mediaElement.classList.add("message-media");
+      }
+      messageContent.appendChild(mediaElement);
+    }
+
+    messageDiv.appendChild(avatar);
+    messageDiv.appendChild(messageContent);
+    messagesDiv.appendChild(messageDiv);
+  });
+
+  messagesDiv.scrollTop = messagesDiv.scrollHeight; // Auto-scroll to bottom
+}
+
+sendButton.addEventListener("click", () => {
+  const messageText = messageInput.value;
+  if (!messageText.trim()) return;
+
+  const message = {
+    user: currentUser.name,
+    text: messageText,
+    time: new Date().toLocaleTimeString(),
+  };
+
+  servers[activeServer].channels[activeChannel].messages.push(message);
+  saveData();
+  loadMessages(activeChannel);
+  messageInput.value = "";
+});
