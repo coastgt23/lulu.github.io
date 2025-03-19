@@ -12,7 +12,7 @@ const settingsPanel = document.getElementById("settingsPanel");
 const overlay = document.getElementById("overlay");
 const clearChatButton = document.getElementById("clearChatButton");
 
-const ws = new WebSocket("ws://localhost:3000"); // WebSocket connection
+const ws = new WebSocket('ws://teddie250214.repl.co');
 
 // Load settings
 let username = localStorage.getItem("username") || prompt("Enter your name:");
