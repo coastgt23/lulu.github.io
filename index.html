@@ -12,14 +12,29 @@
     <!-- Settings Button (Cogwheel) -->
     <button id="settingsButton" class="settings-btn">⚙️</button>
 
+    <!-- Overlay (Initially Hidden) -->
+    <div class="overlay hidden" id="overlay"></div>
+
     <!-- Sidebar / Settings Panel (Initially Hidden) -->
     <div class="sidebar hidden" id="settingsPanel">
       <h2>Settings</h2>
-      <label for="username">Username:</label>
-      <input type="text" id="username">
+      <div>
+        <label for="username">Username:</label>
+        <input type="text" id="username">
+      </div>
+      <div>
+        <label for="pfpInput">Profile Picture:</label>
+        <input type="file" id="pfpInput" accept="image/*">
+      </div>
+      <img id="pfpPreview" src="" alt="Profile Preview">
       <button id="saveSettings">Save</button>
-      <label for="themeToggle">Dark Mode:</label>
-      <input type="checkbox" id="themeToggle">
+      <div>
+        <label for="themeToggle">Dark Mode:</label>
+        <input type="checkbox" id="themeToggle">
+      </div>
+
+      <!-- Clear Chat Button -->
+      <button id="clearChatButton" class="clear-chat-btn">Clear Chat</button>
     </div>
 
     <!-- Chat Section -->
@@ -33,31 +48,69 @@
     </div>
   </div>
 
+  <!-- Context Menu for Message Deletion -->
+  <div id="contextMenu" class="context-menu">
+    <a href="#" id="deleteMessage">Delete Message</a>
+  </div>
+
   <script>
     const messagesDiv = document.getElementById('messages');
     const messageInput = document.getElementById('messageInput');
     const sendButton = document.getElementById('sendButton');
     const mediaInput = document.getElementById('mediaInput');
     const usernameInput = document.getElementById('username');
+    const pfpInput = document.getElementById('pfpInput');
+    const pfpPreview = document.getElementById('pfpPreview');
     const saveSettingsButton = document.getElementById('saveSettings');
     const themeToggle = document.getElementById('themeToggle');
     const settingsButton = document.getElementById('settingsButton');
     const settingsPanel = document.getElementById('settingsPanel');
-    const ws = new WebSocket('ws://localhost:3000');
+    const overlay = document.getElementById('overlay');
+    const contextMenu = document.getElementById('contextMenu');
+    const deleteMessage = document.getElementById('deleteMessage');
+    const clearChatButton = document.getElementById('clearChatButton');
+    const ws = new WebSocket('ws://localhost:3000');  // WebSocket connection to server
 
     // Load settings
     let username = localStorage.getItem('username') || prompt("Enter your name:");
     if (!username) username = "Anonymous";
     localStorage.setItem('username', username);
     usernameInput.value = username;
-    
+
+    let profilePic = localStorage.getItem('profilePic') || '';
     const darkMode = localStorage.getItem('darkMode') === "true";
-    document.body.classList.toggle('dark', darkMode);
-    themeToggle.checked = darkMode;
+    document.body.classList.toggle('dark', darkMode);  // Apply dark mode based on saved preference
+    themeToggle.checked = darkMode;  // Update checkbox based on the saved setting
+
+    // Display Profile Picture Preview
+    function displayProfilePic() {
+      pfpPreview.src = profilePic || 'default-pfp.jpg';
+    }
+
+    // Handle Profile Picture Upload
+    pfpInput.addEventListener('change', function(event) {
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        localStorage.setItem('profilePic', e.target.result);
+        profilePic = e.target.result;
+        displayProfilePic();
+      };
+      reader.readAsDataURL(event.target.files[0]);
+    });
+
+    // Set initial profile picture
+    displayProfilePic();
 
     // Toggle settings menu visibility
     settingsButton.addEventListener('click', () => {
       settingsPanel.classList.toggle('visible');
+      overlay.classList.toggle('hidden');
+    });
+
+    // Hide settings menu when overlay is clicked
+    overlay.addEventListener('click', () => {
+      settingsPanel.classList.remove('visible');
+      overlay.classList.add('hidden');
     });
 
     // Save settings
@@ -67,12 +120,21 @@
       location.reload();
     });
 
+    // Toggle dark mode
+    themeToggle.addEventListener('change', (e) => {
+      document.body.classList.toggle('dark', e.target.checked);
+      localStorage.setItem('darkMode', e.target.checked);  // Save user's theme preference
+    });
+
+    // Handle incoming WebSocket messages (receive messages from server)
     ws.addEventListener('message', (event) => {
       const data = JSON.parse(event.data);
       if (data.type === 'history') {
-        data.messages.forEach(msg => displayMessage(msg.text, msg.sender, msg.media));
+        data.messages.forEach(msg => displayMessage(msg.text, msg.sender, msg.media, msg.pfp, msg.id));
       } else if (data.type === 'message') {
-        displayMessage(data.text, data.sender, data.media);
+        displayMessage(data.text, data.sender, data.media, data.pfp, data.id);
+      } else if (data.type === 'delete') {
+        deleteMessageById(data.id);
       }
     });
 
@@ -108,15 +170,17 @@
     }
 
     function sendToServer(text, media) {
-      const messageData = { sender: username, text, media };
-      ws.send(JSON.stringify(messageData));
-      displayMessage(text, username, media, true);
+      const messageData = { sender: username, text, media, pfp: profilePic };
+      ws.send(JSON.stringify(messageData));  // Send message to server
+      displayMessage(text, username, media, profilePic, true);
     }
 
-    function displayMessage(message, sender, media, isSender = false) {
+    function displayMessage(message, sender, media, pfp, messageId, isSender = false) {
       const messageContainer = document.createElement('div');
+      messageContainer.setAttribute('data-id', messageId);
       const messageElement = document.createElement('div');
       const nameElement = document.createElement('span');
+      const avatarElement = document.createElement('img');
 
       nameElement.textContent = sender + ': ';
       nameElement.style.fontWeight = "bold";
@@ -124,6 +188,9 @@
 
       messageElement.textContent = message;
       messageContainer.classList.add('message-container');
+
+      avatarElement.src = pfp || 'default-pfp.jpg';
+      avatarElement.classList.add('avatar');
 
       if (isSender) {
         messageContainer.classList.add('sender-message-container');
@@ -133,8 +200,9 @@
       }
 
       messageElement.prepend(nameElement);
+      messageContainer.appendChild(avatarElement);
       messageContainer.appendChild(messageElement);
-      
+
       // Handle media
       if (media) {
         const mediaElement = document.createElement(media.startsWith('data:image') ? 'img' : 'video');
@@ -146,7 +214,48 @@
 
       messagesDiv.appendChild(messageContainer);
       messagesDiv.scrollTop = messagesDiv.scrollHeight;  // Auto-scroll to the latest message
+
+      // Enable context menu for message deletion
+      messageContainer.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        contextMenu.style.top = `${e.clientY}px`;
+        contextMenu.style.left = `${e.clientX}px`;
+        contextMenu.style.display = 'block';
+
+        // Delete message functionality
+        deleteMessage.onclick = () => {
+          deleteMessageById(messageId);
+          ws.send(JSON.stringify({ type: 'delete', id: messageId }));  // Inform server to delete the message
+        };
+      });
     }
+
+    // Delete message by ID
+    function deleteMessageById(messageId) {
+      const messageToDelete = messagesDiv.querySelector(`[data-id="${messageId}"]`);
+      if (messageToDelete) {
+        messageToDelete.remove();
+      }
+      contextMenu.style.display = 'none';  // Hide context menu after deleting
+    }
+
+    // Hide context menu if clicked outside
+    window.addEventListener('click', () => {
+      contextMenu.style.display = 'none';
+    });
+
+    // Scroll functionality for older messages
+    messagesDiv.addEventListener('scroll', () => {
+      if (messagesDiv.scrollTop === 0) {
+        ws.send(JSON.stringify({ type: 'getHistory' }));  // Request older messages from the server
+      }
+    });
+
+    // Clear Chat Button functionality
+    clearChatButton.addEventListener('click', () => {
+      messagesDiv.innerHTML = '';  // Clear messages from the chat container
+      ws.send(JSON.stringify({ type: 'clearChat' }));  // Inform server to clear chat for all users
+    });
   </script>
 </body>
 </html>
